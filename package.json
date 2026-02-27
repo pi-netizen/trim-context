@@ -1,0 +1,21 @@
+{
+  "name": "trim-context",
+  "version": "0.1.0",
+  "description": "Automatically compacts Claude session files by summarizing old messages via a local Ollama instance",
+  "type": "module",
+  "bin": {
+    "trim-context": "./bin/trim-context.js"
+  },
+  "scripts": {
+    "start": "node bin/trim-context.js",
+    "dev": "node --watch bin/trim-context.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "chokidar": "^4.0.3",
+    "commander": "^13.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
