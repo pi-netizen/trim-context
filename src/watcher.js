@@ -1,6 +1,6 @@
 import chokidar from 'chokidar';
-import { readFile } from 'fs/promises';
-import { basename } from 'path';
+import { readFile, readdir } from 'fs/promises';
+import { basename, join } from 'path';
 import { compact } from './compaction.js';
 
 // Prevent re-entrant processing of the same file.
@@ -119,17 +119,19 @@ export function startWatcher(config) {
     ignored: /(^|[/\\])\../,    // skip dot-files
     persistent: true,
     // Settle wait — JSONL files are appended line-by-line, so we wait for
-    // the write stream to be quiet before triggering.
+    // the write stream to be quiet before triggering new/changed events.
     awaitWriteFinish: {
       stabilityThreshold: 500,
       pollInterval: 100,
     },
-    ignoreInitial: false,
+    // Skip delayed add-events for existing files; we scan them immediately
+    // in the 'ready' handler below so output appears right at startup.
+    ignoreInitial: true,
   });
 
   watcher
     .on('add', (path) => {
-      console.log(`[watcher] Tracking: ${basename(path)}`);
+      console.log(`[watcher] New file: ${basename(path)}`);
       handleChange(path, config);
     })
     .on('change', (path) => {
@@ -143,8 +145,21 @@ export function startWatcher(config) {
     .on('error', (err) => {
       console.error(`[watcher] Error: ${err.message}`);
     })
-    .on('ready', () => {
+    .on('ready', async () => {
       console.log(`[watcher] Ready — watching ${sessionsDir}`);
+
+      // Immediately process all existing .jsonl files using a direct fs scan.
+      // (getWatched() is empty when ignoreInitial:true in chokidar v4.)
+      try {
+        const entries = await readdir(sessionsDir, { recursive: true });
+        const jsonlFiles = entries.filter((e) => e.endsWith('.jsonl'));
+        console.log(`[watcher] Startup scan: ${jsonlFiles.length} session file(s) found`);
+        for (const rel of jsonlFiles) {
+          handleChange(join(sessionsDir, rel), config);
+        }
+      } catch (err) {
+        console.error(`[watcher] Startup scan failed: ${err.message}`);
+      }
     });
 
   const shutdown = async () => {
